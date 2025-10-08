@@ -97,7 +97,7 @@ const server = Bun.serve({
                 const { text } = await req.json();
 
                 const audioStream = await elevenlabs.textToSpeech.convert(
-                    process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM",
+                    process.env.ELEVENLABS_VOICE_ID as string,
                     {
                         text,
                         model_id: "eleven_monolingual_v1",
