@@ -127,8 +127,12 @@ function hsvToRgb(h, s, v) {
 }
 function enhanceImage(imageData) {
   const data = imageData.data;
-  const contrast = 1.8;
-  const saturationScale = 1.4;
+  const width = imageData.width;
+  const height = imageData.height;
+  const contrast = 1.3;
+  const saturationScale = 0.7;
+  const warmth = 1.15;
+  const coolReduction = 0.85;
   for (let i = 0;i < data.length; i += 4) {
     let r = data[i] / 255;
     let g = data[i + 1] / 255;
@@ -137,8 +141,21 @@ function enhanceImage(imageData) {
     g = Math.pow(g, contrast);
     b = Math.pow(b, contrast);
     const [h, s, v] = rgbToHsv(r * 255, g * 255, b * 255);
-    const newS = Math.min(1, s * saturationScale);
-    const [newR, newG, newB] = hsvToRgb(h, newS, v);
+    const newS = s * saturationScale;
+    let [newR, newG, newB] = hsvToRgb(h, newS, v);
+    newR = newR * warmth;
+    newG = newG * warmth * 0.95;
+    newB = newB * coolReduction;
+    const x = i / 4 % width;
+    const y = Math.floor(i / 4 / width);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
+    const dist = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+    const vignette = 1 - dist / maxDist * 0.3;
+    newR *= vignette;
+    newG *= vignette;
+    newB *= vignette;
     data[i] = Math.min(255, Math.max(0, newR));
     data[i + 1] = Math.min(255, Math.max(0, newG));
     data[i + 2] = Math.min(255, Math.max(0, newB));
