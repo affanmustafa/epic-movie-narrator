@@ -1,4 +1,4 @@
-// public/app.ts
+// src/app.ts
 import {
   FaceDetector,
   FilesetResolver
@@ -145,14 +145,13 @@ function enhanceImage(imageData) {
   }
   return imageData;
 }
-function addSubtitle(text, maxLineLength = 40) {
-  const fontSize = Math.max(20, canvas.width / 40);
-  const font = `${fontSize}px Arial`;
+function addSubtitle(text, maxLineLength = 50) {
+  const fontSize = Math.max(16, canvas.width / 60);
+  const font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`;
   const fontColor = "#FFFFFF";
-  const shadowColor = "#000000";
-  const margin = 20;
-  const lineSpacing = fontSize + 10;
-  const shadowOffset = 3;
+  const margin = 30;
+  const lineSpacing = fontSize * 1.4;
+  const padding = 12;
   const words = text.split(" ");
   const lines = [];
   let currentLine = "";
@@ -171,10 +170,24 @@ function addSubtitle(text, maxLineLength = 40) {
   let startY = canvas.height - textHeightTotal - margin;
   ctx.font = font;
   ctx.textAlign = "center";
+  let maxWidth = 0;
+  for (const line of lines) {
+    const metrics = ctx.measureText(line);
+    if (metrics.width > maxWidth) {
+      maxWidth = metrics.width;
+    }
+  }
+  const bgX = canvas.width / 2 - maxWidth / 2 - padding;
+  const bgY = startY - fontSize - padding / 2;
+  const bgWidth = maxWidth + padding * 2;
+  const bgHeight = textHeightTotal + padding;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+  ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
   for (const line of lines) {
     const x = canvas.width / 2;
-    ctx.fillStyle = shadowColor;
-    ctx.fillText(line, x + shadowOffset, startY + shadowOffset);
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 3;
+    ctx.strokeText(line, x, startY);
     ctx.fillStyle = fontColor;
     ctx.fillText(line, x, startY);
     startY += lineSpacing;
@@ -238,7 +251,6 @@ async function playNarrationAudio(text) {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     await audio.play();
-    console.log("\uD83D\uDD0A Playing narration audio");
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl);
     };
@@ -250,7 +262,6 @@ async function getNarration() {
   if (isProcessingNarration)
     return;
   isProcessingNarration = true;
-  console.log("\uD83C\uDFAC Capturing frame for narration...");
   try {
     const base64Image = captureFrameAsBase64();
     const response = await fetch("/api/narrate", {
@@ -269,7 +280,6 @@ async function getNarration() {
       setStatus(`Error: ${data.error}`, "error");
     } else {
       currentNarration = data.narration;
-      console.log("\uD83C\uDFA4 Narration:", currentNarration);
       conversationHistory.push({
         role: "assistant",
         content: currentNarration
@@ -289,14 +299,14 @@ function initializeNarrationButton() {
     narrateButton.disabled = true;
     narrateButton.classList.add("countdown");
     for (let i = 3;i > 0; i--) {
-      narrateButton.textContent = `⏱️ Starting in ${i}...`;
+      narrateButton.textContent = `Starting in ${i}...`;
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    narrateButton.textContent = "\uD83C\uDFAC Processing...";
+    narrateButton.textContent = "Processing...";
     narrateButton.classList.remove("countdown");
     await getNarration();
     narrateButton.disabled = false;
-    narrateButton.textContent = "\uD83C\uDFAC Start Narration";
+    narrateButton.textContent = "Start Narration";
   });
 }
 function detectFaces() {
@@ -316,16 +326,16 @@ function initializeMusic() {
   musicButton.addEventListener("click", () => {
     if (bgMusic.paused) {
       bgMusic.play();
-      musicButton.textContent = "\uD83D\uDD0A Music Playing";
+      musicButton.textContent = "Music Playing";
       musicButton.classList.add("playing");
     } else {
       bgMusic.pause();
-      musicButton.textContent = "\uD83C\uDFB5 Play Music";
+      musicButton.textContent = "Play Music";
       musicButton.classList.remove("playing");
     }
   });
   bgMusic.play().then(() => {
-    musicButton.textContent = "\uD83D\uDD0A Music Playing";
+    musicButton.textContent = "Music Playing";
     musicButton.classList.add("playing");
   }).catch(() => {
     console.log("Autoplay blocked - click the button to start music");
@@ -336,10 +346,10 @@ function initializeEnhancementToggle() {
   enhanceButton.addEventListener("click", () => {
     enhancementEnabled = !enhancementEnabled;
     if (enhancementEnabled) {
-      enhanceButton.textContent = "✨ Enhancement: ON";
+      enhanceButton.textContent = "Enhancement: ON";
       enhanceButton.classList.remove("off");
     } else {
-      enhanceButton.textContent = "✨ Enhancement: OFF";
+      enhanceButton.textContent = "Enhancement: OFF";
       enhanceButton.classList.add("off");
     }
   });

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run index.ts",
-    "build": "bun build public/app.ts --outfile public/app.js --target browser"
+    "build": "bun build src/app.ts --outfile public/app.js --target browser"
   },
   "devDependencies": {
     "@types/bun": "latest"
