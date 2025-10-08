@@ -5,12 +5,9 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-let elevenlabs: ElevenLabsClient | null = null;
-if (process.env.ELEVENLABS_API_KEY) {
-    elevenlabs = new ElevenLabsClient({
-        apiKey: process.env.ELEVENLABS_API_KEY,
-    });
-}
+const elevenlabs = new ElevenLabsClient({
+    apiKey: process.env.ELEVENLABS_API_KEY,
+});
 
 const systemPrompt = `You are the narrator of a hero film. The name of the character is Affan. Narrate the characters as if you were narrating the main characters in an epic opening sequence in a lord of the rings movie. Be sure to call them by their names.
 Make it really awesome, while really making the characters feel epic. Don't repeat yourself. Make it short, max one line 10-20 words. Build on top of the story as you tell it. Don't use the word image.
@@ -82,18 +79,6 @@ const server = Bun.serve({
 
         if (url.pathname === "/api/speak" && req.method === "POST") {
             try {
-                if (!elevenlabs) {
-                    return new Response(
-                        JSON.stringify({
-                            error: "ElevenLabs API key not configured. Please set ELEVENLABS_API_KEY in your .env file"
-                        }),
-                        {
-                            status: 500,
-                            headers: { "Content-Type": "application/json" },
-                        }
-                    );
-                }
-
                 const { text } = await req.json();
 
                 const audioStream = await elevenlabs.textToSpeech.convert(
