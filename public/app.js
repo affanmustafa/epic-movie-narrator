@@ -1,0 +1,368 @@
+// public/app.ts
+import {
+  FaceDetector,
+  FilesetResolver
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/+esm";
+var faceDetector;
+var video;
+var canvas;
+var ctx;
+var animationId;
+var bgMusic;
+var enhancementEnabled = true;
+var conversationHistory = [];
+var isProcessingNarration = false;
+var currentNarration = "---";
+var statusEl = document.getElementById("status");
+function setStatus(message, type) {
+  statusEl.textContent = message;
+  statusEl.className = type;
+}
+async function initializeFaceDetector() {
+  try {
+    setStatus("Loading MediaPipe model...", "loading");
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm");
+    faceDetector = await FaceDetector.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO"
+    });
+    setStatus("Model loaded! Starting webcam...", "loading");
+    return true;
+  } catch (error) {
+    console.error("Error initializing face detector:", error);
+    setStatus(`Error: ${error}`, "error");
+    return false;
+  }
+}
+async function initializeWebcam() {
+  try {
+    video = document.getElementById("webcam");
+    canvas = document.getElementById("canvas");
+    ctx = canvas.getContext("2d");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 1280, height: 720 },
+      audio: false
+    });
+    video.srcObject = stream;
+    await new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        resolve(true);
+      };
+    });
+    setStatus("✓ Ready! Detecting faces...", "ready");
+    return true;
+  } catch (error) {
+    console.error("Error accessing webcam:", error);
+    setStatus(`Webcam error: ${error}`, "error");
+    return false;
+  }
+}
+function rgbToHsv(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const diff = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : diff / max;
+  const v = max;
+  if (diff !== 0) {
+    if (max === r) {
+      h = ((g - b) / diff + (g < b ? 6 : 0)) / 6;
+    } else if (max === g) {
+      h = ((b - r) / diff + 2) / 6;
+    } else {
+      h = ((r - g) / diff + 4) / 6;
+    }
+  }
+  return [h * 360, s, v];
+}
+function hsvToRgb(h, s, v) {
+  h /= 360;
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  let r = 0, g = 0, b = 0;
+  switch (i % 6) {
+    case 0:
+      r = v;
+      g = t;
+      b = p;
+      break;
+    case 1:
+      r = q;
+      g = v;
+      b = p;
+      break;
+    case 2:
+      r = p;
+      g = v;
+      b = t;
+      break;
+    case 3:
+      r = p;
+      g = q;
+      b = v;
+      break;
+    case 4:
+      r = t;
+      g = p;
+      b = v;
+      break;
+    case 5:
+      r = v;
+      g = p;
+      b = q;
+      break;
+  }
+  return [r * 255, g * 255, b * 255];
+}
+function enhanceImage(imageData) {
+  const data = imageData.data;
+  const contrast = 1.8;
+  const saturationScale = 1.4;
+  for (let i = 0;i < data.length; i += 4) {
+    let r = data[i] / 255;
+    let g = data[i + 1] / 255;
+    let b = data[i + 2] / 255;
+    r = Math.pow(r, contrast);
+    g = Math.pow(g, contrast);
+    b = Math.pow(b, contrast);
+    const [h, s, v] = rgbToHsv(r * 255, g * 255, b * 255);
+    const newS = Math.min(1, s * saturationScale);
+    const [newR, newG, newB] = hsvToRgb(h, newS, v);
+    data[i] = Math.min(255, Math.max(0, newR));
+    data[i + 1] = Math.min(255, Math.max(0, newG));
+    data[i + 2] = Math.min(255, Math.max(0, newB));
+  }
+  return imageData;
+}
+function addSubtitle(text, maxLineLength = 40) {
+  const fontSize = Math.max(20, canvas.width / 40);
+  const font = `${fontSize}px Arial`;
+  const fontColor = "#FFFFFF";
+  const shadowColor = "#000000";
+  const margin = 20;
+  const lineSpacing = fontSize + 10;
+  const shadowOffset = 3;
+  const words = text.split(" ");
+  const lines = [];
+  let currentLine = "";
+  for (const word of words) {
+    if ((currentLine + word).length <= maxLineLength) {
+      currentLine += word + " ";
+    } else {
+      if (currentLine)
+        lines.push(currentLine.trim());
+      currentLine = word + " ";
+    }
+  }
+  if (currentLine)
+    lines.push(currentLine.trim());
+  const textHeightTotal = lineSpacing * lines.length;
+  let startY = canvas.height - textHeightTotal - margin;
+  ctx.font = font;
+  ctx.textAlign = "center";
+  for (const line of lines) {
+    const x = canvas.width / 2;
+    ctx.fillStyle = shadowColor;
+    ctx.fillText(line, x + shadowOffset, startY + shadowOffset);
+    ctx.fillStyle = fontColor;
+    ctx.fillText(line, x, startY);
+    startY += lineSpacing;
+  }
+}
+function drawFaceDetections(detections) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (enhancementEnabled) {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const enhancedData = enhanceImage(imageData);
+    ctx.putImageData(enhancedData, 0, 0);
+  }
+  for (const detection of detections) {
+    const bbox = detection.boundingBox;
+    ctx.strokeStyle = "#00ff00";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bbox.originX, bbox.originY, bbox.width, bbox.height);
+    if (detection.categories && detection.categories.length > 0) {
+      const confidence = Math.round(detection.categories[0].score * 100);
+      ctx.fillStyle = "#00ff00";
+      ctx.font = "18px Arial";
+      ctx.fillText(`${confidence}%`, bbox.originX, bbox.originY - 5);
+    }
+    if (detection.keypoints) {
+      ctx.fillStyle = "#ff0000";
+      for (const keypoint of detection.keypoints) {
+        ctx.beginPath();
+        ctx.arc(keypoint.x * canvas.width, keypoint.y * canvas.height, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+  }
+  if (currentNarration && currentNarration !== "---") {
+    addSubtitle(currentNarration);
+  }
+}
+function captureFrameAsBase64() {
+  const tempCanvas = document.createElement("canvas");
+  const maxWidth = 500;
+  const ratio = maxWidth / video.videoWidth;
+  tempCanvas.width = maxWidth;
+  tempCanvas.height = video.videoHeight * ratio;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+  return tempCanvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+}
+async function playNarrationAudio(text) {
+  try {
+    const response = await fetch("/api/speak", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
+    });
+    if (!response.ok) {
+      throw new Error("Failed to generate speech");
+    }
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    await audio.play();
+    console.log("\uD83D\uDD0A Playing narration audio");
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+    };
+  } catch (error) {
+    console.error("Failed to play narration audio:", error);
+  }
+}
+async function getNarration() {
+  if (isProcessingNarration)
+    return;
+  isProcessingNarration = true;
+  console.log("\uD83C\uDFAC Capturing frame for narration...");
+  try {
+    const base64Image = captureFrameAsBase64();
+    const response = await fetch("/api/narrate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        history: conversationHistory
+      })
+    });
+    const data = await response.json();
+    if (data.error) {
+      console.error("Narration error:", data.error);
+      setStatus(`Error: ${data.error}`, "error");
+    } else {
+      currentNarration = data.narration;
+      console.log("\uD83C\uDFA4 Narration:", currentNarration);
+      conversationHistory.push({
+        role: "assistant",
+        content: currentNarration
+      });
+      setStatus("✓ Narration complete", "ready");
+      await playNarrationAudio(currentNarration);
+    }
+  } catch (error) {
+    console.error("Failed to get narration:", error);
+  } finally {
+    isProcessingNarration = false;
+  }
+}
+function initializeNarrationButton() {
+  const narrateButton = document.getElementById("narrateButton");
+  narrateButton.addEventListener("click", async () => {
+    narrateButton.disabled = true;
+    narrateButton.classList.add("countdown");
+    for (let i = 3;i > 0; i--) {
+      narrateButton.textContent = `⏱️ Starting in ${i}...`;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    narrateButton.textContent = "\uD83C\uDFAC Processing...";
+    narrateButton.classList.remove("countdown");
+    await getNarration();
+    narrateButton.disabled = false;
+    narrateButton.textContent = "\uD83C\uDFAC Start Narration";
+  });
+}
+function detectFaces() {
+  if (!video || !faceDetector)
+    return;
+  const startTimeMs = performance.now();
+  const detections = faceDetector.detectForVideo(video, startTimeMs);
+  if (detections && detections.detections) {
+    drawFaceDetections(detections.detections);
+  }
+  animationId = requestAnimationFrame(detectFaces);
+}
+function initializeMusic() {
+  bgMusic = document.getElementById("bgMusic");
+  const musicButton = document.getElementById("musicButton");
+  bgMusic.volume = 0.3;
+  musicButton.addEventListener("click", () => {
+    if (bgMusic.paused) {
+      bgMusic.play();
+      musicButton.textContent = "\uD83D\uDD0A Music Playing";
+      musicButton.classList.add("playing");
+    } else {
+      bgMusic.pause();
+      musicButton.textContent = "\uD83C\uDFB5 Play Music";
+      musicButton.classList.remove("playing");
+    }
+  });
+  bgMusic.play().then(() => {
+    musicButton.textContent = "\uD83D\uDD0A Music Playing";
+    musicButton.classList.add("playing");
+  }).catch(() => {
+    console.log("Autoplay blocked - click the button to start music");
+  });
+}
+function initializeEnhancementToggle() {
+  const enhanceButton = document.getElementById("enhanceButton");
+  enhanceButton.addEventListener("click", () => {
+    enhancementEnabled = !enhancementEnabled;
+    if (enhancementEnabled) {
+      enhanceButton.textContent = "✨ Enhancement: ON";
+      enhanceButton.classList.remove("off");
+    } else {
+      enhanceButton.textContent = "✨ Enhancement: OFF";
+      enhanceButton.classList.add("off");
+    }
+  });
+}
+async function start() {
+  initializeMusic();
+  initializeEnhancementToggle();
+  initializeNarrationButton();
+  const detectorReady = await initializeFaceDetector();
+  if (!detectorReady)
+    return;
+  const webcamReady = await initializeWebcam();
+  if (!webcamReady)
+    return;
+  detectFaces();
+}
+window.addEventListener("beforeunload", () => {
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+  }
+  if (video && video.srcObject) {
+    const tracks = video.srcObject.getTracks();
+    tracks.forEach((track) => track.stop());
+  }
+});
+start();

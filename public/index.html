@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Face Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+
+        #container {
+            position: relative;
+            max-width: 1280px;
+            width: 100%;
+        }
+
+        #webcam {
+            display: none;
+        }
+
+        #canvas {
+            width: 100%;
+            height: auto;
+            border: 2px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #2a2a2a;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        #musicButton,
+        #enhanceButton,
+        #narrateButton {
+            margin-top: 15px;
+            margin-left: 10px;
+            padding: 12px 24px;
+            background: #4ade80;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #musicButton:hover,
+        #enhanceButton:hover,
+        #narrateButton:hover:not(:disabled) {
+            background: #22c55e;
+            transform: scale(1.05);
+        }
+
+        #musicButton.playing {
+            background: #ffa500;
+        }
+
+        #enhanceButton.off {
+            background: #666;
+        }
+
+        #narrateButton:disabled {
+            background: #666;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #narrateButton.countdown {
+            background: #f59e0b;
+        }
+
+        .loading {
+            color: #ffa500;
+        }
+
+        .ready {
+            color: #4ade80;
+        }
+
+        .error {
+            color: #ff4444;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📹 Webcam Face Detection</h1>
+
+    <div id="container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="status" class="loading">Initializing...</div>
+    <button id="musicButton">🎵 Play Music</button>
+    <button id="enhanceButton">✨ Enhancement: ON</button>
+    <button id="narrateButton">🎬 Start Narration</button>
+    <audio id="bgMusic" loop>
+        <source src="/gladiator.mp3" type="audio/mpeg">
+    </audio>
+
+    <script type="module" src="/app.js"></script>
+</body>
+
+</html>
