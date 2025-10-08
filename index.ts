@@ -125,8 +125,8 @@ const server = Bun.serve({
             }
         }
 
-        if (url.pathname === "/gladiator.mp3") {
-            const file = Bun.file("gladiator.mp3");
+        if (url.pathname === "/hero.mp3") {
+            const file = Bun.file("hero.mp3");
             if (await file.exists()) {
                 return new Response(file, {
                     headers: { "Content-Type": "audio/mpeg" },
